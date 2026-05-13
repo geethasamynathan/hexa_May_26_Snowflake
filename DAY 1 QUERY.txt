@@ -1,0 +1,383 @@
+CREATE WAREHOUSE my_wh
+WITH
+WAREHOUSE_SIZE="XSMALL"
+AUTO_SUSPEND=60
+AUTO_RESUME=TRUE
+INITIALLY_SUSPENDED=TRUE;
+
+
+
+CREATE DATABASE MY_DATABASE;
+
+
+CREATE DATABASE sales_db
+COMMENT='Database for sales department data';
+
+CREATE DATABASE IF NOT EXISTS Finance_db;
+
+show databases;
+
+CREATE OR REPLACE  TRANSIENT DATABASE TEMP_DB
+COMMENT="TEMPERORY DATA STORE WITH NO FAIL -SAFE"
+
+USE DATABASE SNOWFLAKE_SAMPLE_DATA;
+
+USE SCHEMA tpch_sf1;
+
+show tables;
+
+
+SELECT * FROM CUSTOMER ;
+
+SELECT * FROM CUSTOMER LIMIT 10;
+
+SELECT C_CUSTKEY,C_NAME,C_NATIONKEY 
+FROM CUSTOMER
+WHERE C_NATIONKEY=14;
+
+
+SELECT * FROM ORDERS;
+
+SELECT C.C_NAME AS CUSTOMER_NAME,
+O.O_ORDERKEY,
+O.O_ORDERDATE,
+O.O_TOTALPRICE
+FROM CUSTOMER C
+JOIN ORDERS O
+ON C.C_CUSTKEY=O.O_CUSTKEY
+LIMIT  20;
+
+--AGGREGATION
+
+SELECT C.C_NAME,
+SUM(O.O_TOTALPRICE) AS TOTAL_SALES
+FROM CUSTOMER C
+JOIN ORDERS O
+ON C.C_CUSTKEY=O.O_CUSTKEY
+GROUP BY C.C_NAME
+ORDER BY TOTAL_SALES DESC 
+LIMIT 15;
+
+
+SELECT O_ORDERKEY,O_ORDERDATE,O_TOTALPRICE
+FROM ORDERS
+WHERE YEAR(O_ORDERDATE)=1996
+ORDER BY O_ORDERDATE
+LIMIT 10;
+
+
+SELECT * FROM REGION;
+SELECT * FROM NATION;
+
+
+CREATE DATABASE MY_PRACTICE_DB;
+
+USE MY_PRACTICE_DB;
+
+CREATE OR REPLACE TABLE MY_TOP_CUSTOMERS AS
+SELECT C.C_NAME,SUM(O.O_TOTALPRICE) AS TOTAL_SALES
+FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOMER C
+JOIN SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.ORDERS O
+ON O.O_CUSTKEY=C.C_CUSTKEY
+GROUP BY C.C_NAME
+ORDER BY TOTAL_SALES DESC;
+
+SELECT * FROM MY_TOP_CUSTOMERS;
+
+CREATE SCHEMA MY_SCHEMA;
+
+USE SCHEMA MY_SCHEMA;
+
+CREATE OR REPLACE TABLE PERMENANT_TABLE(
+ID INT,
+NAME STRING
+);
+
+CREATE OR REPLACE TRANSIENT TABLE TRANSIENT_TABLE(
+ID INT,
+NAME STRING
+);
+
+CREATE OR REPLACE TEMPORARY TABLE TEMPORARY_TABLE(
+ID INT,
+NAME STRING
+);
+
+SHOW TABLES IN SCHEMA MY_PRACTICE_DB.MY_SCHEMA;
+
+ALTER TABLE TRANSIENT_TABLE
+SET DATA_RETENTION_TIME_IN_DAYS =1;
+
+ALTER TABLE PERMENANT_TABLE
+SET DATA_RETENTION_TIME_IN_DAYS =2;
+
+SHOW PARAMETERS LIKE 'DATA_RETENTION_TIME_IN_DAYS' IN DATABASE MY_PRACTICE_DB;
+
+
+CREATE SCHEMA EXTERNAL_STAGES;
+CREATE OR REPLACE STAGE MY_PRACTICE_DB.EXTERNAL_STAGES.AWS_STAGE
+URL='S3://bucketsnowflakes3';
+
+LIST @MY_PRACTICE_DB.EXTERNAL_STAGES.AWS_STAGE;
+
+CREATE DATABASE FIRST_DB;
+
+CREATE OR REPLACE FILE FORMAT FIRST_DB.PUBLIC.ORDER_CSV_FORMAT
+TYPE = CSV
+FIELD_DELIMITER = ','
+SKIP_HEADER = 1;
+
+CREATE OR REPLACE TABLE FIRST_DB.PUBLIC.ORDERS (
+    ORDER_ID VARCHAR(30),
+    AMOUNT INT,
+    PROFIT INT,
+    QUANTITY INT,
+    CATEGORY VARCHAR(30),
+    SUBCATEGORY VARCHAR(30));
+
+   
+// First copy command
+
+COPY INTO FIRST_DB.PUBLIC.ORDERS
+    FROM @AWS_STAGE
+    file_format = (type = csv field_delimiter=',' skip_header=1);
+
+// Copy command with pattern for file names
+
+COPY INTO FIRST_DB.PUBLIC.ORDERS
+    FROM @MY_PRACTICE_db.external_stages.aws_stage
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    pattern='.*Order.*';
+    
+// Copy command with specified file(s)
+
+COPY INTO FIRST_DB.PUBLIC.ORDERS
+    FROM @MY_PRACTICE_db.external_stages.aws_stage
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    files = ('OrderDetails.csv');
+
+
+    
+COPY INTO FIRST_DB.PUBLIC.ORDERS
+    FROM @MY_PRACTICE_DB.external_stages.aws_stage
+    file_format= (type = csv field_delimiter=',' skip_header=1)
+    files = ('OrderDetails.csv');
+    
+
+ 
+
+SELECT  * FROM FIRST_DB.PUBLIC.ORDERS;
+
+
+CREATE OR REPLACE DATABASE MANAGE_DB;
+
+CREATE OR REPLACE SCHEMA external_stages;
+
+
+// Publicly accessible staging area    
+
+CREATE OR REPLACE STAGE MANAGE_DB.external_stages.aws_stage
+    url='s3://bucketsnowflakes3';
+
+DESC STAGE MANAGE_DB.external_stages.aws_stage;
+
+LIST @aws_stage;
+
+
+Show tables;
+
+create table first_db.public.ORDERS_EX(
+ORDER_ID varchar(10),
+AMOUNT INT
+);
+
+COPY INTO FIRST_DB.PUBLIC.ORDERS_EX
+FROM (select s.$1,s.$2 from @MANAGE_DB.external_stages.aws_stage s)
+file_format=(type=csv field_delimiter=',' skip_header=1)
+files=('OrderDetails.csv');
+
+SELECT * FROM orDERS_EX;
+
+
+CREATE OR REPLACE TABLE FIRST_DB.PUBLIC.ORDERS_EX(
+ORDER_ID varchar(10),
+AMOUNT INT,
+PROFIT INT,
+PROFITABLE_FLAG VARCHAR(30)
+);
+
+COPY INTO FIRST_DB.PUBLIC.ORDERS_EX
+FROM (select s.$1,s.$2,S.$3,
+CASE WHEN CAST(S.$3 AS INT)<0 THEN 'NOT PROFITABLE' ELSE 'PROFITABLE' END
+from @MANAGE_DB.external_stages.aws_stage s)
+file_format=(type=csv field_delimiter=',' skip_header=1)
+files=('OrderDetails.csv');
+
+SELECT * FROM ORDERS_EX;
+
+
+//COPY COMMAND WITH sql FUNCTION
+
+CREATE OR REPLACE TABLE FIRST_DB.PUBLIC.ORDERS_EX(
+ORDER_ID varchar(10),
+AMOUNT INT,
+PROFIT INT,
+CATEGORY_SUBSTRING VARCHAR(5)
+);
+
+
+COPY INTO FIRST_DB.PUBLIC.ORDERS_EX
+FROM (select s.$1,s.$2,S.$3,
+SUBSTRING(S.$5,1,5)
+from @MANAGE_DB.external_stages.aws_stage s)
+file_format=(type=csv field_delimiter=',' skip_header=1)
+files=('OrderDetails.csv');
+
+SELECT * FROM ORDERS_EX;
+
+//TABLE WITH AUTO INCREMENT
+
+CREATE OR REPLACE TABLE ORDERS_EX(
+ORDER_ID NUMBER AUTOINCREMENT START 1 INCREMENT 1,
+AMOUNT INT,
+PROFIT INT,
+PROFILTABLE_FLAG VARCHAR(30)
+);
+
+
+COPY INTO ORDERS_EX (PROFIT,AMOUNT)
+FROM (SELECT S.$2,S.$3
+from @MANAGE_DB.external_stages.aws_stage s)
+file_format=(type=csv field_delimiter=',' skip_header=1)
+files=('OrderDetails.csv');
+
+SELECT * FROM ORDERS_EX;
+
+
+
+//CREATE NEW STAGE
+
+CREATE OR REPLACE STAGE MANAGE_DB.external_stages.aws_stage_errorex
+url='s3://bucketsnowflakes4';
+s3://bucketsnowflakes3
+LIST @MANAGE_DB.EXTERNAL_STAGES.AWS_STAGE_ERROREX
+
+
+
+
+
+CREATE OR REPLACE TABLE FIRST_DB.PUBLIC.ORDERS_EX(
+ORDER_ID varchar(10),
+AMOUNT INT,
+PROFIT INT,
+QUANTITY INT,
+CATEGORY VARCHAR(30),
+SUNCATEGORY VARCHAR(30)
+);
+
+
+COPY INTO FIRST_DB.PUBLIC.ORDERS_EX
+    FROM @MANAGE_DB.external_stages.aws_stage_errorex
+     file_format= (type = csv field_delimiter=',' skip_header=1)
+     files = ('OrderDetails_error.csv');
+
+
+SELECT * FROM  FIRST_DB.PUBLIC.ORDERS_EX;
+
+
+COPY INTO FIRST_DB.PUBLIC.ORDERS_EX
+FROM @MANAGE_DB.external_stages.aws_stage_errorex
+file_format= (type = csv field_delimiter=',' skip_header=1)
+files = ('OrderDetails_error.csv')
+ON_ERROR='CONTINUE';
+
+SELECT * FROM  FIRST_DB.PUBLIC.ORDERS_EX;
+
+SELECT COUNT(*) FROM  FIRST_DB.PUBLIC.ORDERS_EX;
+
+TRUNCATE TABLE FIRST_DB.PUBLIC.ORDERS_EX;
+
+
+SELECT * FROM  FIRST_DB.PUBLIC.ORDERS_EX;
+
+COPY INTO FIRST_DB.PUBLIC.ORDERS_EX
+FROM @MANAGE_DB.external_stages.aws_stage_errorex
+file_format= (type = csv field_delimiter=',' skip_header=1)
+files = ('OrderDetails_error.csv')
+ON_ERROR='ABORT_STATEMENT';
+
+
+
+//
+// Error handling using the ON_ERROR option = SKIP_FILE
+
+COPY INTO FIRST_DB.PUBLIC.ORDERS_EX
+FROM @MANAGE_DB.external_stages.aws_stage_errorex
+file_format= (type = csv field_delimiter=',' skip_header=1)
+files = ('OrderDetails_error.csv','OrderDetails_error2.csv')
+ON_ERROR='SKIP_FILE';
+
+
+TRUNCATE TABLE FIRST_DB.PUBLIC.ORDERS_EX;
+
+
+SELECT * FROM  FIRST_DB.PUBLIC.ORDERS_EX;
+// Error handling using the ON_ERROR option = SKIP_FILE <NUMBER>
+
+COPY INTO FIRST_DB.PUBLIC.ORDERS_EX
+FROM @MANAGE_DB.external_stages.aws_stage_errorex
+file_format= (type = csv field_delimiter=',' skip_header=1)
+files = ('OrderDetails_error.csv','OrderDetails_error2.csv')
+ON_ERROR='SKIP_FILE_2';
+
+TRUNCATE TABLE FIRST_DB.PUBLIC.ORDERS_EX;
+
+
+SELECT * FROM  FIRST_DB.PUBLIC.ORDERS_EX;
+
+COPY INTO FIRST_DB.PUBLIC.ORDERS_EX
+FROM @MANAGE_DB.external_stages.aws_stage_errorex
+file_format= (type = csv field_delimiter=',' skip_header=1)
+files = ('OrderDetails_error.csv','OrderDetails_error2.csv')
+ON_ERROR='SKIP_FILE_1%';
+
+
+TRUNCATE TABLE FIRST_DB.PUBLIC.ORDERS_EX;
+SELECT * FROM  FIRST_DB.PUBLIC.ORDERS_EX;
+
+COPY INTO FIRST_DB.PUBLIC.ORDERS_EX
+FROM @MANAGE_DB.external_stages.aws_stage_errorex
+file_format= (type = csv field_delimiter=',' skip_header=1)
+files = ('OrderDetails_error.csv','OrderDetails_error2.csv')
+ON_ERROR='SKIP_FILE_3'
+SIZE_LIMIT=30;
+
+--VALIDATION MODE
+CREATE OR REPLACE DATABASE COPY_DB;
+
+
+CREATE OR REPLACE TABLE  COPY_DB.PUBLIC.ORDERS (
+    ORDER_ID VARCHAR(30),
+    AMOUNT VARCHAR(30),
+    PROFIT INT,
+    QUANTITY INT,
+    CATEGORY VARCHAR(30),
+    SUBCATEGORY VARCHAR(30));
+
+CREATE OR REPLACE STAGE COPY_DB.PUBLIC.aws_stage_copy
+url='s3://snowflakebucket-copyoption/size/';
+
+LIST @COPY_DB.PUBLIC.aws_stage_copy;
+COPY INTO COPY_DB.PUBLIC.ORDERS
+FROM @aws_stage_copy
+file_format=(type=csv field_delimiter=',',skip_header=1)
+pattern='.*Order.*'
+VALIDATION_MODE=RETURN_ERRORS;
+
+SELECT * FROM COPY_DB.PUBLIC.ORDERS;
+
+COPY INTO COPY_DB.PUBLIC.ORDERS
+FROM @aws_stage_copy
+file_format=(type=csv field_delimiter=',',skip_header=1)
+pattern='.*Order.*'
+VALIDATION_MODE=RETURN_5_ROWS;
