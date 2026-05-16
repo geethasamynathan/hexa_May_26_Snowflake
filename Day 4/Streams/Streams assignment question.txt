@@ -1,0 +1,290 @@
+Implement Snowflake Streams for Sales Data Processing
+
+
+A retail company receives sales data in a staging table. The company wants to load this data into a final reporting table. After the initial load, only newly inserted or updated records should be processed using Snowflake Streams.
+
+You need to create the database, tables, stream object, insert records, consume stream data, and update the final table using stream changes.
+
+
+Task 1: Create Database
+
+Create a transient database named:
+
+STREAMS_DB
+
+Task 2: Create Raw Sales Staging Table
+
+Create a table named:
+
+SALES_RAW_STAGING
+
+The table should contain the following columns:
+
+id
+product
+price
+amount
+store_id
+
+Use suitable data types.
+
+
+Task 3: Insert Initial Sales Data
+
+Insert the following five records into SALES_RAW_STAGING:
+
+id	product	price	amount	store_id
+1	Banana	1.99	1	1
+2	Lemon	0.99	1	1
+3	Apple	1.79	1	2
+4	Orange Juice	1.89	1	
+5	Cereals	5.98	2	1
+
+
+Task 4: Create Store Table
+
+Create a table named:
+
+STORE_TABLE
+
+The table should contain:
+
+store_id
+location
+employees
+
+
+Task 5: Insert Store Data
+
+Insert the following records into STORE_TABLE:
+
+store_id	location	employees
+1	Chicago	33
+2	London	12
+Task 6: Create Final Sales Table
+
+Create a table named:
+
+SALES_FINAL_TABLE
+
+The table should contain:
+
+id
+product
+price
+amount
+store_id
+location
+employees
+
+This table will store sales data along with store location and employee details.
+
+Task 7: Perform Initial Full Load
+
+Load data from SALES_RAW_STAGING into SALES_FINAL_TABLE.
+
+While loading, join:
+
+SALES_RAW_STAGING
+
+with:
+
+STORE_TABLE
+
+using STORE_ID.
+
+
+Task 8: Verify Initial Load
+
+Display data from:
+
+SALES_RAW_STAGING;
+STORE_TABLE;
+SALES_FINAL_TABLE;
+
+Confirm that SALES_FINAL_TABLE contains 5 records.
+
+
+Stream Implementation
+Task 9: Create Stream Object
+
+Create a stream named:
+
+SALES_STREAM
+
+on top of:
+
+SALES_RAW_STAGING
+Task 10: View Stream Information
+
+Execute commands to:
+
+Show all streams.
+Describe the SALES_STREAM.
+Select data from SALES_STREAM.
+
+Answer this question:
+
+Why is SALES_STREAM empty immediately after creation?
+Insert Change Capture
+Task 11: Insert New Sales Records
+
+Insert the following two records into SALES_RAW_STAGING:
+
+id	product	price	amount	store_id
+6	Mango	1.99	1	2
+7	Garlic	0.99	1	1
+
+
+
+Task 12: Check Stream Data
+
+Query SALES_STREAM.
+
+Observe the new records and metadata columns:
+
+METADATA$ACTION
+METADATA$ISUPDATE
+METADATA$ROW_ID
+
+Answer this question:
+
+What value do you see in METADATA$ACTION for newly inserted records?
+
+
+Task 13: Verify Source and Target Tables
+
+Check data in:
+
+SALES_RAW_STAGING;
+SALES_FINAL_TABLE;
+
+Answer this question:
+
+Are the new records available in SALES_FINAL_TABLE before consuming the stream?
+
+
+Task 14: Consume Stream Data
+
+Insert new records from SALES_STREAM into SALES_FINAL_TABLE.
+
+While inserting, join the stream with STORE_TABLE using STORE_ID.
+
+Task 15: Verify Stream After Consumption
+
+Query:
+
+SELECT * FROM SALES_STREAM;
+
+Answer this question:
+
+Why did the stream become empty after inserting data into SALES_FINAL_TABLE?
+
+Second Insert Change Capture
+Task 16: Insert More Sales Records
+
+Insert the following two records into SALES_RAW_STAGING:
+
+id	product	price	amount	store_id
+8	Paprika	4.99	1	2
+9	Tomato	3.99	1	2
+Task 17: Consume Second Stream Data
+
+Consume the newly captured stream records and insert them into SALES_FINAL_TABLE.
+
+Task 18: Verify Final Insert Output
+
+Display data from:
+
+SALES_FINAL_TABLE;
+SALES_RAW_STAGING;
+SALES_STREAM;
+
+Answer:
+
+How many records are now available in SALES_FINAL_TABLE?
+
+
+Update Change Capture
+Task 19: Check Existing Data Before Update
+
+Display records from:
+
+SALES_RAW_STAGING;
+SALES_STREAM;
+Task 20: Perform First Update
+
+Update the product name:
+
+Banana
+
+to:
+
+Potato
+
+in SALES_RAW_STAGING.
+
+Task 21: Check Stream After Update
+
+Query:
+
+SELECT * FROM SALES_STREAM;
+
+Answer:
+
+How does Snowflake represent an UPDATE operation inside a stream?
+Task 22: Consume Update Using MERGE
+
+Use a MERGE statement to update the corresponding record in SALES_FINAL_TABLE.
+
+Condition:
+
+Match records using ID
+Update only records where METADATA$ACTION = 'INSERT'
+and METADATA$ISUPDATE = TRUE
+
+Update the following columns:
+
+product
+price
+amount
+store_id
+Task 23: Verify First Update
+
+Display data from:
+
+SALES_FINAL_TABLE;
+SALES_RAW_STAGING;
+SALES_STREAM;
+
+Answer:
+
+Is Banana changed to Potato in SALES_FINAL_TABLE?
+Second Update Change Capture
+Task 24: Perform Second Update
+
+Update the product name:
+
+Apple
+
+to:
+
+Green apple
+
+in SALES_RAW_STAGING.
+
+Task 25: Consume Second Update Using MERGE
+
+Use a MERGE statement to update the changed record in SALES_FINAL_TABLE.
+
+Task 26: Verify Final Output
+
+Display data from:
+
+SALES_FINAL_TABLE;
+SALES_RAW_STAGING;
+SALES_STREAM;
+
+Answer:
+
+Is Apple changed to Green apple in SALES_FINAL_TABLE?
